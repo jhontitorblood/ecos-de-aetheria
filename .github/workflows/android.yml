@@ -1,0 +1,30 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, prototype-v0.1]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate-and-export:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate project and import assets
+        run: godot --headless --editor --path . --quit
+      - name: Export Android APK
+        run: |
+          mkdir -p build
+          godot --headless --path . --export-debug "Android" build/EcosDeAetheria-debug.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ecos-de-Aetheria-Android
+          path: build/EcosDeAetheria-debug.apk
+          if-no-files-found: error
+          retention-days: 14
