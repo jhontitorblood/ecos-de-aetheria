@@ -1,0 +1,86 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, prototype-v0.1]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate-and-export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Godot 4.3
+        shell: bash
+        run: |
+          set -euxo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          unzip -q Godot_v4.3-stable_linux.x86_64.zip
+          sudo install -m 0755 Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.3.stable"
+          unzip -q Godot_v4.3-stable_export_templates.tpz -d /tmp/godot-templates
+          cp -a /tmp/godot-templates/templates/. "$HOME/.local/share/godot/export_templates/4.3.stable/"
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android platform and build tools
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;latest" "cmake;3.10.2.4988404" "ndk;23.2.8568313"
+
+      - name: Configure Godot Android SDK
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.config/godot" "$HOME/.android"
+          keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$HOME/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+
+      - name: Start Android Debug Bridge
+        shell: bash
+        run: |
+          set -euxo pipefail
+          adb version
+          adb kill-server || true
+          adb start-server
+          adb devices
+
+      - name: Validate project
+        run: godot --headless --editor --path . --quit
+
+      - name: Export Android APK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p build
+          godot --headless --path . --export-debug "Android" build/EcosDeAetheria-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ecos-de-Aetheria-Android
+          path: build/EcosDeAetheria-debug.apk
+          if-no-files-found: error
+          retention-days: 14
