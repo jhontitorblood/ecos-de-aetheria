@@ -28,11 +28,18 @@ jobs:
 
       - name: Install Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install Android platform and build tools
-        run: sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+        shell: bash
+        run: |
+          set -euxo pipefail
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Configure Godot Android SDK
+        shell: bash
         run: |
           mkdir -p "$HOME/.config/godot" "$HOME/.android"
           keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
@@ -49,9 +56,9 @@ jobs:
         run: godot --headless --editor --path . --quit
 
       - name: Export Android APK
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        shell: bash
         run: |
+          set -euxo pipefail
           mkdir -p build
           godot --headless --path . --export-debug "Android" build/EcosDeAetheria-debug.apk
 
