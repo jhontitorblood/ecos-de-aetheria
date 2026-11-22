@@ -52,6 +52,15 @@ jobs:
           export/android/debug_keystore_pass = "android"
           EOF
 
+      - name: Start Android Debug Bridge
+        shell: bash
+        run: |
+          set -euxo pipefail
+          adb version
+          adb kill-server || true
+          adb start-server
+          adb devices
+
       - name: Validate project
         run: godot --headless --editor --path . --quit
 
